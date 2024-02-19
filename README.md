@@ -1,2 +1,2 @@
 # zed-swift-extension
- Extension for Zed to support Java
+ Extension for Zed to support Swift
