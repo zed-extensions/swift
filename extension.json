@@ -1,9 +1,9 @@
 {
   "name": "Swift",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "authors": [
     "Samuser107 L.Longheval <samuser107@gmail.com>"
   ],
-  "description": "Provides Swift syntax highlighting and language support in Zed",
+  "description": "Provides Swift syntax highlightingin Zed",
   "repository": "https://github.com/samuser107/zed-swift-extension"
 }
