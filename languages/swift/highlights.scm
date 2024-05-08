@@ -19,7 +19,7 @@
   (mutation_modifier)
 ] @keyword
 
-(function_declaration (simple_identifier) @method)
+(function_declaration (simple_identifier) @function.method)
 (init_declaration ["init" @constructor])
 (deinit_declaration ["deinit" @constructor])
 (throws) @keyword
@@ -71,7 +71,8 @@
 (class_body (property_declaration (pattern (simple_identifier) @property)))
 (protocol_property_declaration (pattern (simple_identifier) @property))
 
-(value_argument name: (value_argument_label) @variable.member)
+(value_argument
+  name: (value_argument_label) @variable.member)
 
 (import_declaration
   "import" @keyword.import)
@@ -96,25 +97,38 @@
 (diagnostic) @function.macro
 
 ; Statements
-(for_statement ["for" @repeat])
-(for_statement ["in" @repeat])
+(for_statement ["for" @keyword.repeat])
+(for_statement ["in" @keyword.repeat])
 (for_statement (pattern) @variable)
 (else) @keyword
 (as_operator) @keyword
 
-["while" "repeat" "continue" "break"] @repeat
+["while" "repeat" "continue" "break"] @keyword.repeat
 
 ["let" "var"] @keyword
 
-(guard_statement ["guard" @conditional])
-(if_statement ["if" @conditional])
-(switch_statement ["switch" @conditional])
-(switch_entry ["case" @keyword])
-(switch_entry ["fallthrough" @keyword])
-(switch_entry (default_keyword) @keyword)
+(guard_statement
+  "guard" @keyword.conditional)
+  
+(if_statement
+  "if" @keyword.conditional)
+
+(switch_statement
+  "switch" @keyword.conditional)
+
+(switch_entry
+  "case" @keyword)
+
+(switch_entry
+  "fallthrough" @keyword)
+
+(switch_entry
+  (default_keyword) @keyword)
+
 "return" @keyword.return
+
 (ternary_expression
-  ["?" ":"] @conditional)
+  ["?" ":"] @keyword.conditional)
 
 ["do" (throw_keyword) (catch_keyword)] @keyword
 
@@ -154,9 +168,9 @@
   (oct_literal)
   (bin_literal)
 ] @number
-(real_literal) @float
+(real_literal) @number.float
 (boolean_literal) @boolean
-"nil" @constant.builtin
+"nil" @variable.builtin
 
 ; Regex literals
 (regex_literal) @string.regexp
