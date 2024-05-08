@@ -20,8 +20,6 @@
 ] @keyword
 
 (function_declaration (simple_identifier) @method)
-
-(function_declaration (simple_identifier) @method)
 (init_declaration ["init" @constructor])
 (deinit_declaration ["deinit" @constructor])
 (throws) @keyword
