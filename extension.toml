@@ -1,0 +1,15 @@
+id = "swift"
+name = "Swift"
+description = "Swift LSP & syntax highlighting!"
+version = "0.0.1"
+schema_version = 1
+authors = ["ejjonny <https://github.com/ejjonny>"]
+repository = "https://github.com/zed-extensions/swift/"
+
+[grammars.swift]
+repository = "https://github.com/alex-pinkus/tree-sitter-swift"
+commit = "caa99d7d3c14aac03b5f16fc86fedf8755570760" #0.4.3
+
+[language_servers.sourcekit-lsp]
+name = "sourcekit-lsp"
+language = "Swift"
