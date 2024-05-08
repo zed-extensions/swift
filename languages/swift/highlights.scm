@@ -26,11 +26,11 @@
 "async" @keyword
 "await" @keyword
 (where_keyword) @keyword
-(parameter external_name: (simple_identifier) @parameter)
-(parameter name: (simple_identifier) @parameter)
-(type_parameter (type_identifier) @parameter)
-(inheritance_constraint (identifier (simple_identifier) @parameter))
-(equality_constraint (identifier (simple_identifier) @parameter))
+(parameter external_name: (simple_identifier) @property)
+(parameter name: (simple_identifier) @property)
+(type_parameter (type_identifier) @property)
+(inheritance_constraint (identifier (simple_identifier) @property))
+(equality_constraint (identifier (simple_identifier) @property))
 (pattern bound_identifier: (simple_identifier)) @variable
 
 [
@@ -68,11 +68,11 @@
   (modify_specifier)
 ] @keyword
 
-(class_body (property_declaration (pattern (simple_identifier) @property)))
-(protocol_property_declaration (pattern (simple_identifier) @property))
+(class_body (property_declaration (pattern (simple_identifier) @variable.parameter)))
+(protocol_property_declaration (pattern (simple_identifier) @variable.parameter))
 
 (value_argument
-  name: (value_argument_label) @variable.member)
+  name: (value_argument_label) @property)
 
 (import_declaration
   "import" @keyword.import)
@@ -87,7 +87,7 @@
     (navigation_suffix (simple_identifier) @function.call)))
 ((navigation_expression
    (simple_identifier) @type) ; SomeType.method(): highlight SomeType as a type
-   (#match? @type "^[A-Z]"))
+   (#match? @property "^[A-Z]"))
 (call_expression (simple_identifier) @keyword (#eq? @keyword "defer")) ; defer { ... }
 
 (try_operator) @operator
@@ -170,7 +170,7 @@
 ] @number
 (real_literal) @number.float
 (boolean_literal) @boolean
-"nil" @variable.builtin
+"nil" @keyword
 
 ; Regex literals
 (regex_literal) @string.regexp
