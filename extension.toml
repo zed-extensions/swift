@@ -1,7 +1,7 @@
 id = "swift"
 name = "Swift"
 description = "Swift LSP & syntax highlighting"
-version = "0.0.1"
+version = "0.2.0"
 schema_version = 1
 authors = ["ejjonny <https://github.com/ejjonny>", "Samuser107 L.Longheval <samuser107@gmail.com>"]
 repository = "https://github.com/zed-industries/zed"
