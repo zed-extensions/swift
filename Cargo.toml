@@ -1,7 +1,8 @@
 [package]
-name = "swift-ext"
-version = "0.1.0"
+name = "zed_swift"
+version = "0.2.0"
 edition = "2021"
+publish = false
 
 [lib]
 path = "src/swift.rs"

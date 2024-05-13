@@ -147,14 +147,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "swift-ext"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "zed_extension_api",
-]
-
-[[package]]
 name = "syn"
 version = "2.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -320,4 +312,12 @@ dependencies = [
  "serde",
  "serde_json",
  "wit-bindgen",
+]
+
+[[package]]
+name = "zed_swift"
+version = "0.2.0"
+dependencies = [
+ "serde_json",
+ "zed_extension_api",
 ]
