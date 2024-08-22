@@ -27,7 +27,21 @@
 (function_declaration
     "func" @name
     name: (simple_identifier) @name
-    ) @item
+    "(" @name
+    (
+        (parameter
+            external_name: (simple_identifier)? @name
+            name: (simple_identifier) @name ; should be captured only if external_name isn't presented.
+            ":" @name
+            (user_type
+                (type_identifier)  @name
+            )
+        )
+    ","?
+    )*
+    ")" @name
+    body: (function_body) @body
+) @item
 
 (property_declaration
     (value_binding_pattern) @name
