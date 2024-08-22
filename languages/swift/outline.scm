@@ -1,6 +1,16 @@
 (protocol_declaration
     declaration_kind: "protocol" @name
-    name: (type_identifier) @name) @item
+    name: (type_identifier) @name
+    (
+        (":")
+        .
+        (
+            (inheritance_specifier)
+            .
+            (",")? @name
+        )* @name
+    )? @name
+) @item
 
 (class_declaration
     declaration_kind: "struct" @name
