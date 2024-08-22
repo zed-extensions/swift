@@ -1,9 +1,9 @@
 name = "Swift"
 grammar = "swift"
-path_suffixes = ["swift"]
-line_comments = ["//"]
-block_comment = ["/*", "*/"]
-autoclose_before = ")}]"
+path_suffixes = ["swift", "swiftinterface"]
+line_comments = ["//", "///"]
+block_comment = ["/*", "/**", "*/"]
+autoclose_before = ")}]>"
 brackets = [
     { start = "{", end = "}", close = true, newline = true },
     { start = "[", end = "]", close = true, newline = true },
