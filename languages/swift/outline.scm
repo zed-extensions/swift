@@ -27,23 +27,25 @@
 (function_declaration
     "func" @name
     name: (simple_identifier) @name
+    (type_parameters)? @name
     "(" @name
-    (
-        (parameter
-            external_name: (simple_identifier)? @name
-            name: (simple_identifier) @name ; should be captured only if external_name isn't presented.
-            ":" @name
-            (user_type
-                (type_identifier)  @name
-            )
-        )
-    ","?
-    )*
+        (
+            (parameter) @name
+            ","? @name
+        )*
     ")" @name
-    body: (function_body) @body
+    "->"? @name
+    (user_type)? @name
+    (tuple_type)? @name
+    (dictionary_type)? @name
+    (array_type)? @name
+    (optional_type)? @name
 ) @item
 
-(property_declaration
-    (value_binding_pattern) @name
-    name: (pattern) @name
-) @item
+(class_body
+    (property_declaration
+        (value_binding_pattern) @name
+        name: (pattern) @name
+        (type_annotation)? @name
+    ) @item
+)
