@@ -1,15 +1,9 @@
 (protocol_declaration
     declaration_kind: "protocol" @name
-    name: (type_identifier) @name
-    (
-        (":")
-        .
-        (
-            (inheritance_specifier)
-            .
-            (",")? @name
-        )* @name
-    )? @name
+    .
+    _ * @name
+    .
+    body: (protocol_body)
 ) @item
 
 (class_declaration
@@ -22,23 +16,19 @@
             "struct"
         ]
     ) @name
-    name: [
-        (user_type)
-        (type_identifier)
-    ] @name
-    (
-        (":")
-        .
-        (
-            (inheritance_specifier)
-            .
-            (",")? @name
-        )* @name
-    )? @name
+    .
+    _ * @name
+    .
+    body: (class_body)
 ) @item
 
 (init_declaration
-    name: "init" @name) @item
+    name: "init" @name
+    .
+    _ * @name
+    .
+    body: (function_body)
+) @item
 
 (deinit_declaration
     "deinit" @name) @item
