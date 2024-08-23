@@ -13,20 +13,29 @@
 ) @item
 
 (class_declaration
-    declaration_kind: "struct" @name
-    name: (type_identifier) @name) @item
-
-(class_declaration
-    declaration_kind: "class" @name
-    name: (type_identifier) @name) @item
-
-(class_declaration
-    declaration_kind: "extension" @name
-    name: (user_type) @name) @item
-
-(class_declaration
-    declaration_kind: "actor" @name
-    name: (type_identifier) @name) @item ;@context.actor
+    declaration_kind: (
+        [
+            "actor"
+            "class"
+            "extension"
+            "enum"
+            "struct"
+        ]
+    ) @name
+    name: [
+        (user_type)
+        (type_identifier)
+    ] @name
+    (
+        (":")
+        .
+        (
+            (inheritance_specifier)
+            .
+            (",")? @name
+        )* @name
+    )? @name
+) @item
 
 (init_declaration
     name: "init" @name) @item
