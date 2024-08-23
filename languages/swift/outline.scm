@@ -45,20 +45,37 @@
 
 (function_declaration
     "func" @name
+    .
     name: (simple_identifier) @name
-    (type_parameters)? @name
-    "(" @name
-        (
-            (parameter) @name
-            ","? @name
-        )*
-    ")" @name
-    "->"? @name
-    (user_type)? @name
-    (tuple_type)? @name
-    (dictionary_type)? @name
-    (array_type)? @name
-    (optional_type)? @name
+    .
+    (
+        (type_parameters) @name
+    )?
+    ; .
+    ; "(" @name
+    ; .
+    ; (
+    ;     (parameter) @name
+    ;     ","? @name
+    ; )*
+    ; .
+    ; ")" @name
+    ; .
+    ; "async"? @name
+    ; .
+    ; (throws)? @name
+    ; .
+    (
+        "->"
+        .
+        [
+            (user_type)
+            (tuple_type)
+            (dictionary_type)
+            (array_type)
+            (optional_type)
+        ] @name
+    )? @name
 ) @item
 
 (class_body
