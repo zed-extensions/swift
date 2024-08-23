@@ -46,9 +46,8 @@
 (function_declaration
     "func" @name
     .
-    name: (simple_identifier) @name
-    .
     _ * @name
+    .
     body: (function_body)
 ) @item
 
