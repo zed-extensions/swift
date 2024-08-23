@@ -3,7 +3,10 @@ name = "Swift"
 description = "Swift support."
 version = "0.3.0"
 schema_version = 1
-authors = ["ejjonny <https://github.com/ejjonny>", "Samuser107 L.Longheval <samuser107@gmail.com>"]
+authors = [
+    "ejjonny <https://github.com/ejjonny>",
+    "Samuser107 L.Longheval <samuser107@gmail.com>",
+]
 repository = "https://github.com/zed-industries/zed"
 
 [language_servers.sourcekit-lsp]
@@ -12,4 +15,4 @@ language = "Swift"
 
 [grammars.swift]
 repository = "https://github.com/alex-pinkus/tree-sitter-swift"
-commit = "caa99d7d3c14aac03b5f16fc86fedf8755570760"
+commit = "33e56e4e2a6455f3fd4e04cfe5c7a314d498612d"
