@@ -48,34 +48,8 @@
     .
     name: (simple_identifier) @name
     .
-    (
-        (type_parameters) @name
-    )?
-    ; .
-    ; "(" @name
-    ; .
-    ; (
-    ;     (parameter) @name
-    ;     ","? @name
-    ; )*
-    ; .
-    ; ")" @name
-    ; .
-    ; "async"? @name
-    ; .
-    ; (throws)? @name
-    ; .
-    (
-        "->"
-        .
-        [
-            (user_type)
-            (tuple_type)
-            (dictionary_type)
-            (array_type)
-            (optional_type)
-        ] @name
-    )? @name
+    _ * @name
+    body: (function_body)
 ) @item
 
 (class_body
