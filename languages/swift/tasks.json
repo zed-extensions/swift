@@ -2,6 +2,13 @@
   {
     "label": "test $ZED_RELATIVE_FILE:$ZED_ROW",
     "command": "echo 'To run tests, configure tasks in your \".zed/tasks.json\" file.'",
-    "tags": ["swift-test"]
+    "tags": [
+      "swift-test-async-spec",
+      "swift-test-func",
+      "swift-test-quick-spec",
+      "swift-test-suite",
+      "swift-test-test",
+      "swift-test-test-case"
+    ]
   }
 ]
