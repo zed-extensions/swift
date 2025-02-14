@@ -1,12 +1,11 @@
 use zed_extension_api::lsp::{Completion, CompletionKind, Symbol, SymbolKind};
 use zed_extension_api::settings::LspSettings;
-use zed_extension_api::{self as zed, CodeLabel, CodeLabelSpan, EnvVars, LanguageServerId};
+use zed_extension_api::{self as zed, CodeLabel, CodeLabelSpan, LanguageServerId};
 
 #[derive(Clone, Debug)]
 pub struct LanguageServerBinary {
     pub path: String,
     pub args: Option<Vec<String>>,
-    pub env: EnvVars,
 }
 
 #[derive(Default)]
@@ -35,12 +34,6 @@ impl SourceKitLsp {
                 return Ok(LanguageServerBinary {
                     path,
                     args: binary_settings.arguments,
-                    env: binary_settings
-                        .env
-                        .iter()
-                        .flat_map(|env_vars| env_vars.iter())
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect(),
                 });
             }
         }
@@ -48,15 +41,13 @@ impl SourceKitLsp {
         if let Some(path) = worktree.which(Self::SERVER_ID) {
             return Ok(LanguageServerBinary {
                 path,
-                args: Default::default(),
-                env: worktree.shell_env(),
+                args: Some(Self::get_executable_args()),
             });
         }
 
         Ok(LanguageServerBinary {
             path: "/usr/bin/xcrun".into(),
             args: Some(vec![Self::SERVER_ID.into()]),
-            env: Default::default(),
         })
     }
 
@@ -70,48 +61,151 @@ impl SourceKitLsp {
         Ok(zed::Command {
             command: binary.path,
             args: binary.args.unwrap_or(Self::get_executable_args()),
-            env: binary.env,
+            env: worktree.shell_env(),
         })
     }
 
     pub fn label_for_completion(&self, completion: Completion) -> Option<CodeLabel> {
-        let highlight_name = match completion.kind? {
-            CompletionKind::Class | CompletionKind::Struct | CompletionKind::Enum => "type",
-            CompletionKind::Function => "function",
-            CompletionKind::Method => "function.method",
-            CompletionKind::Variable => "variable",
-            CompletionKind::Property => "property",
-            _ => return None,
-        };
+        use CompletionKind::*;
 
-        let label = completion.label.clone();
-        Some(CodeLabel {
-            code: label.clone(),
-            spans: vec![CodeLabelSpan::literal(
-                label,
-                Some(highlight_name.to_string()),
-            )],
-            filter_range: (0..completion.label.len()).into(),
-        })
+        let kind = completion.kind?;
+
+        match kind {
+            Class | Enum | Interface | Keyword | Module | Struct => {
+                let highlight_name = match completion.kind? {
+                    Class | Interface | Enum | Struct => Some("type".to_string()),
+                    Keyword => Some("keyword".to_string()),
+                    _ => None,
+                };
+
+                Some(CodeLabel {
+                    code: Default::default(),
+                    filter_range: (0..completion.label.len()).into(),
+                    spans: vec![CodeLabelSpan::literal(completion.label, highlight_name)],
+                })
+            }
+            EnumMember => {
+                let start = "enum Enum { case ";
+                let code = format!("{start}{} }}", completion.label);
+
+                Some(CodeLabel {
+                    code,
+                    spans: vec![CodeLabelSpan::code_range(
+                        start.len()..start.len() + completion.label.len(),
+                    )],
+                    filter_range: (0..completion.label.find('(').unwrap_or(completion.label.len()))
+                        .into(),
+                })
+            }
+            Function => {
+                let func = "func ";
+                let mut return_type = String::new();
+
+                if let Some(detail) = completion.detail {
+                    if !detail.is_empty() {
+                        return_type = format!(" -> {detail}");
+                    }
+                }
+
+                let before_braces = format!("{func}{}{return_type}", completion.label);
+                let code = format!("{before_braces} {{}}");
+
+                Some(CodeLabel {
+                    code,
+                    spans: vec![CodeLabelSpan::code_range(func.len()..before_braces.len())],
+                    filter_range: (0..completion.label.find('(')?).into(),
+                })
+            }
+            TypeParameter => {
+                let typealias = "typealias ";
+                let code = format!("{typealias}{} = {}", completion.label, completion.detail?);
+
+                Some(CodeLabel {
+                    spans: vec![CodeLabelSpan::code_range(typealias.len()..code.len())],
+                    code,
+                    filter_range: (0..completion.label.len()).into(),
+                })
+            }
+            Value => {
+                let mut r#type = String::new();
+
+                if let Some(detail) = completion.detail {
+                    if !detail.is_empty() {
+                        r#type = format!(": {detail}");
+                    }
+                }
+
+                let var = format!("var variable{type} = ");
+                let code = format!("{var}{}", completion.label);
+
+                Some(CodeLabel {
+                    spans: vec![CodeLabelSpan::code_range(var.len()..code.len())],
+                    code,
+                    filter_range: (0..completion.label.len()).into(),
+                })
+            }
+            Variable => {
+                let var = "var ";
+                let code = format!("{var}{}: {}", completion.label, completion.detail?);
+
+                Some(CodeLabel {
+                    spans: vec![CodeLabelSpan::code_range(var.len()..code.len())],
+                    code,
+                    filter_range: (0..completion.label.len()).into(),
+                })
+            }
+            _ => None,
+        }
     }
 
     pub fn label_for_symbol(&self, symbol: Symbol) -> Option<CodeLabel> {
-        let name = &symbol.name;
-        let (code, display_range) = match symbol.kind {
-            SymbolKind::Function | SymbolKind::Method => {
-                (format!("func {}() {{\n}}", name), 5..5 + name.len())
+        match symbol.kind {
+            SymbolKind::Method | SymbolKind::Function => {
+                // Simple label: "func <name>"
+                let code = format!("func {}", symbol.name);
+                Some(CodeLabel {
+                    code: code.clone(),
+                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
+                    filter_range: (0..symbol.name.len()).into(),
+                })
             }
-            SymbolKind::Class => (format!("class {} {{\n}}", name), 6..6 + name.len()),
-            SymbolKind::Struct => (format!("struct {} {{\n}}", name), 7..7 + name.len()),
-            SymbolKind::Enum => (format!("enum {} {{\n}}", name), 5..5 + name.len()),
-            SymbolKind::Variable => (format!("var {}: Type", name), 4..4 + name.len()),
-            _ => return None,
-        };
-
-        Some(CodeLabel {
-            code,
-            spans: vec![CodeLabelSpan::code_range(display_range)],
-            filter_range: (0..name.len()).into(),
-        })
+            SymbolKind::Variable | SymbolKind::Constant => {
+                // Simple label: "var/let <name>"
+                let code = format!("var/let {}", symbol.name);
+                Some(CodeLabel {
+                    code: code.clone(),
+                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
+                    filter_range: (0..symbol.name.len()).into(),
+                })
+            }
+            SymbolKind::Class => {
+                // Simple label: "class <name>"
+                let code = format!("class {}", symbol.name);
+                Some(CodeLabel {
+                    code: code.clone(),
+                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
+                    filter_range: (0..symbol.name.len()).into(),
+                })
+            }
+            SymbolKind::Struct => {
+                // Simple label: "struct <name>"
+                let code = format!("struct {}", symbol.name);
+                Some(CodeLabel {
+                    code: code.clone(),
+                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
+                    filter_range: (0..symbol.name.len()).into(),
+                })
+            }
+            SymbolKind::Enum => {
+                // Simple label: "enum <name>"
+                let code = format!("enum {}", symbol.name);
+                Some(CodeLabel {
+                    code: code.clone(),
+                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
+                    filter_range: (0..symbol.name.len()).into(),
+                })
+            }
+            _ => None,
+        }
     }
 }
