@@ -1,0 +1,16 @@
+[
+  // These don't yet work: `swift test --filter` only supports Symbols (not filenames)
+  // {
+  //   "label": "swift test",
+  //   "command": "swift",
+  //   "args": ["test", "--filter", "${ZED_STEM}"],
+  //   "tags": [
+  //     "swift-test-async-spec",
+  //     "swift-test-quick-spec",
+  //     "swift-test-func",
+  //     "swift-test-suite",
+  //     "swift-test-test-case",
+  //     "swift-test-test"
+  //   ]
+  // }
+]
