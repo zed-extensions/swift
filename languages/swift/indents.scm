@@ -32,7 +32,7 @@
   (tuple_expression)            ; ( foo + bar )
   (array_literal)               ; [ foo, bar ]
   (dictionary_literal)          ; [ foo: bar, x: y ]
-  (lambda_literal) 
+  (lambda_literal)
   (willset_didset_block)
   (willset_clause)
   (didset_clause)
@@ -52,15 +52,10 @@
   (#not-has-type? @indent.branch type_parameters parameter))
 
 
-(ERROR
-  [
-    "<" 
-    "{" 
-    "(" 
-    "["
-  ]
-) @indent.begin
-
+(_ "{" "}" @end) @indent
+(_ "(" ")" @end) @indent
+(_ "<" ">" @end) @indent
+(_ "[" "]" @end) @indent
 
 ; if-elseif
 (if_statement
