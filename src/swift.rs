@@ -9,7 +9,7 @@ use zed::settings::LspSettings;
 use zed_extension_api::{
     self as zed,
     lsp::{Completion, Symbol},
-    serde_json, CodeLabel, LanguageServerId, Result,
+    serde_json, CodeLabel, LanguageServerId, Result, StartDebuggingRequestArgumentsRequest,
 };
 
 #[derive(Default)]
@@ -18,12 +18,23 @@ struct SwiftExtension {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SwiftDebugConfig {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     cwd: Option<String>,
     #[serde(default)]
     env: HashMap<String, String>,
-    program: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    program: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pid: Option<u32>,
+    request: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stop_on_entry: Option<bool>,
+}
+
+impl SwiftExtension {
+    const ADAPTER_NAME: &str = "Swift";
 }
 
 impl zed::Extension for SwiftExtension {
@@ -86,14 +97,23 @@ impl zed::Extension for SwiftExtension {
 
     fn get_dap_binary(
         &mut self,
-        _adapter_name: String,
+        adapter_name: String,
         config: zed_extension_api::DebugTaskDefinition,
         user_provided_debug_adapter_path: Option<String>,
         worktree: &zed_extension_api::Worktree,
     ) -> Result<zed_extension_api::DebugAdapterBinary, String> {
+        if adapter_name != Self::ADAPTER_NAME {
+            return Err(format!("Cannot create binary for adapter: {adapter_name}"));
+        }
+
         let configuration = config.config.to_string();
         let config: SwiftDebugConfig =
             serde_json::from_str(&config.config).map_err(|e| e.to_string())?;
+        let request = match config.request.as_str() {
+            "launch" => StartDebuggingRequestArgumentsRequest::Launch,
+            "attach" => StartDebuggingRequestArgumentsRequest::Attach,
+            other => return Err(format!("Unexpected value for `request` key in Swift debug adapter configuration: {other:?}"))
+        };
         let command = user_provided_debug_adapter_path
             .or_else(|| {
                 worktree.which("/Applications/Xcode.app/Contents/Developer/usr/bin/lldb-dap")
@@ -109,16 +129,20 @@ impl zed::Extension for SwiftExtension {
             connection: None,
             request_args: zed_extension_api::StartDebuggingRequestArguments {
                 configuration,
-                request: todo!(),
+                request,
             },
         })
     }
 
     fn dap_request_kind(
         &mut self,
-        _adapter_name: String,
+        adapter_name: String,
         config: serde_json::Value,
     ) -> Result<zed_extension_api::StartDebuggingRequestArgumentsRequest, String> {
+        if adapter_name != Self::ADAPTER_NAME {
+            return Err(format!("Cannot create binary for adapter: {adapter_name}"));
+        }
+
         match config.get("request") {
             Some(launch) if launch == "launch" => {
                Ok(zed_extension_api::StartDebuggingRequestArgumentsRequest::Launch)
@@ -140,9 +164,12 @@ impl zed::Extension for SwiftExtension {
         match zed_scenario.request {
             zed_extension_api::DebugRequest::Launch(launch) => {
                 let config = serde_json::to_string(&SwiftDebugConfig {
-                    program: launch.program,
+                    program: Some(launch.program),
                     env: launch.envs.into_iter().collect(),
                     cwd: launch.cwd.clone(),
+                    request: "launch".to_owned(),
+                    pid: None,
+                    stop_on_entry: zed_scenario.stop_on_entry,
                 })
                 .unwrap();
 
@@ -154,7 +181,25 @@ impl zed::Extension for SwiftExtension {
                     build: None,
                 })
             }
-            zed_extension_api::DebugRequest::Attach(_) => todo!(),
+            zed_extension_api::DebugRequest::Attach(attach) => {
+                let config = serde_json::to_string(&SwiftDebugConfig {
+                    program: None,
+                    env: Default::default(),
+                    request: "attach".to_owned(),
+                    pid: attach.process_id,
+                    cwd: None,
+                    stop_on_entry: zed_scenario.stop_on_entry,
+                })
+                .unwrap();
+
+                Ok(zed_extension_api::DebugScenario {
+                    adapter: zed_scenario.adapter,
+                    label: zed_scenario.label,
+                    build: None,
+                    config,
+                    tcp_connection: None,
+                })
+            }
         }
     }
 }
