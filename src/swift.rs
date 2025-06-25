@@ -114,16 +114,24 @@ impl zed::Extension for SwiftExtension {
             "attach" => StartDebuggingRequestArgumentsRequest::Attach,
             other => return Err(format!("Unexpected value for `request` key in Swift debug adapter configuration: {other:?}"))
         };
-        let command = user_provided_debug_adapter_path
+        let (command, arguments) = user_provided_debug_adapter_path
+            .map(|path| (path, Vec::<String>::new()))
             .or_else(|| {
-                worktree.which("/Applications/Xcode.app/Contents/Developer/usr/bin/lldb-dap")
+                let swiftly = worktree.which("swiftly")?;
+                Some((swiftly, vec!["run".into(), "lldb-dap".into()]))
             })
-            .or_else(|| worktree.which("/Library/Developer/CommandLineTools/usr/bin/lldb-dap"))
-            .or_else(|| worktree.which("lldb-dap"))
+            .or_else(|| {
+                let xcrun = worktree.which("xcrun")?;
+                Some((xcrun, vec!["lldb-dap".into()]))
+            })
+            .or_else(|| {
+                let lldb_dap = worktree.which("lldb-dap")?;
+                Some((lldb_dap, Vec::new()))
+            })
             .ok_or_else(|| "Could not find lldb-dap".to_owned())?;
         Ok(zed_extension_api::DebugAdapterBinary {
             command: Some(command),
-            arguments: Vec::new(),
+            arguments,
             envs: config.env.into_iter().collect(),
             cwd: Some(config.cwd.unwrap_or_else(|| worktree.root_path())),
             connection: None,

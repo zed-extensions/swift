@@ -22,6 +22,11 @@
       "type": "object",
       "description": "Additional environment variables to pass to the debugging (and debugged) process",
       "default": {}
+    },
+    "stopOnEntry": {
+      "type": "boolean",
+      "description": "Whether to stop the stop the program immediately after launching it",
+      "default": false
     }
   }
 }
