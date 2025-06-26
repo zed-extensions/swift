@@ -13,3 +13,4 @@ brackets = [
     { start = "/*", end = " */", close = true, newline = false, not_in = ["string", "comment"] },
 ]
 documentation = { start = "/*", end = "*/", prefix = "* ", tab_size = 1 }
+debuggers = ["Swift"]
