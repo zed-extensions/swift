@@ -1,7 +1,7 @@
 id = "swift"
 name = "Swift"
 description = "Swift support."
-version = "0.4.1"
+version = "0.4.2"
 schema_version = 1
 authors = [
     "ejjonny <https://github.com/ejjonny>",
@@ -18,6 +18,4 @@ repository = "https://github.com/alex-pinkus/tree-sitter-swift"
 commit = "33e56e4e2a6455f3fd4e04cfe5c7a314d498612d"
 
 [debug_adapters.Swift]
-# Optional relative path to the JSON schema for the debug adapter configuration schema. Defaults to `debug_adapter_schemas/$DEBUG_ADAPTER_NAME_ID.json`.
-# Note that while this field is optional, a schema is mandatory.
 schema_path = "debug_adapter_schemas/Swift.json"
