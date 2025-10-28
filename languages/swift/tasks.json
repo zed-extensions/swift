@@ -1,16 +1,33 @@
 [
-  // These don't yet work: `swift test --filter` only supports Symbols (not filenames)
-  // {
-  //   "label": "swift test",
-  //   "command": "swift",
-  //   "args": ["test", "--filter", "${ZED_STEM}"],
-  //   "tags": [
-  //     "swift-test-async-spec",
-  //     "swift-test-quick-spec",
-  //     "swift-test-func",
-  //     "swift-test-suite",
-  //     "swift-test-test-case",
-  //     "swift-test-test"
-  //   ]
-  // }
+    // The first component of a test specifier is the test target name. Since we don't
+    // know that here, our filters match any leading word.
+    //
+    // Test specifiers can be listed with "swift test list".
+
+    {
+        "label": "$ZED_CUSTOM_SWIFT_TEST_CLASS test",
+        "command": "swift",
+        "args": ["test", "--filter", "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_CLASS/'"],
+        "tags": ["swift-xctest-class", "swift-testing-suite"]
+    },
+    {
+        "label": "$ZED_CUSTOM_SWIFT_TEST_CLASS.$ZED_CUSTOM_SWIFT_TEST_FUNC test",
+        "command": "swift",
+        "args": [
+            "test",
+            "--filter",
+            "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_CLASS/$ZED_CUSTOM_SWIFT_TEST_FUNC\\b'"
+        ],
+        "tags": ["swift-xctest-func", "swift-testing-member-func"]
+    },
+    {
+        "label": "$ZED_CUSTOM_SWIFT_TEST_FUNC test",
+        "command": "swift",
+        "args": [
+            "test",
+            "--filter",
+            "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_FUNC\\b'"
+        ],
+        "tags": ["swift-testing-bare-func"]
+    }
 ]
