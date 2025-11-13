@@ -1,3 +1,85 @@
+//! # Runnables Tests
+//!
+//! Unit tests for the Swift runnables tree-sitter query file (`languages/swift/runnables.scm`).
+//!
+//! ## Overview
+//!
+//! The runnables query is used by Zed to identify test functions and test classes in Swift code.
+//! The tests validate that the query correctly captures:
+//!
+//! 1. **Swift Testing Framework** (modern Swift 6+ testing)
+//!    - `@Suite` annotations on structs and classes
+//!    - `@Test` annotations on top-level functions
+//!    - `@Test` annotations on member functions within test suites
+//!
+//! 2. **XCTest Framework** (traditional Swift testing)
+//!    - Classes that inherit from `XCTestCase`
+//!    - Classes marked with `@XCTestCase` comment annotation (for indirect subclasses)
+//!    - Test methods within XCTest classes (must start with `test` prefix)
+//!
+//! 3. **Quick/Nimble Framework** (BDD-style testing)
+//!    - `QuickSpec` subclasses
+//!    - `AsyncSpec` subclasses
+//!
+//! ## Running Tests
+//!
+//! ```bash
+//! # Run all tests
+//! cargo test --lib
+//!
+//! # Run only the runnables tests
+//! cargo test --lib runnables_test
+//! ```
+//!
+//! ## Test Structure
+//!
+//! Each test:
+//! 1. Defines a Swift code snippet containing test code
+//! 2. Parses the code using tree-sitter-swift
+//! 3. Runs the runnables query against the parsed tree
+//! 4. Validates that the correct captures are returned with the appropriate tags
+//!
+//! ## Tags
+//!
+//! The query assigns tags to different types of test definitions:
+//!
+//! - `swift-testing-suite` - A struct/class with `@Suite` annotation
+//! - `swift-testing-bare-func` - A top-level function with `@Test` annotation
+//! - `swift-testing-member-func` - A member function with `@Test` annotation within a suite
+//! - `swift-xctest-class` - A class that inherits from `XCTestCase` or is marked with `@XCTestCase` comment
+//! - `swift-xctest-func` - A test method within an XCTest class
+//! - `swift-test-quick-spec` - A QuickSpec subclass
+//! - `swift-test-async-spec` - An AsyncSpec subclass
+//!
+//! ## Adding New Tests
+//!
+//! When adding support for new test frameworks or patterns:
+//!
+//! 1. Add a new test function in this module
+//! 2. Create a Swift code snippet that demonstrates the pattern
+//! 3. Use `get_captures()` to run the query
+//! 4. Assert that the expected tags and names are captured
+//!
+//! Example:
+//!
+//! ```rust
+//! #[test]
+//! fn test_new_framework() {
+//!     let source = r#"
+//! // Your Swift test code here
+//! "#;
+//!
+//!     let captures = get_captures(source, get_query());
+//!
+//!     assert!(
+//!         captures
+//!             .iter()
+//!             .any(|(tag, class, func)| tag == "expected-tag" && class == "ExpectedClass"),
+//!         "Expected to find the test pattern"
+//!     );
+//! }
+//! ```
+
 #[cfg(test)]
 mod tests {
     use std::sync::OnceLock;
