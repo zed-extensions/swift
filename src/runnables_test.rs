@@ -369,10 +369,9 @@ class OuterTests: XCTestCase {
     fn test_xctest_indirect_subclass() {
         // This test documents a known limitation: tree-sitter queries work on syntax, not semantics,
         // so they cannot follow inheritance chains. Indirect subclasses (MyTests <- MyTestsBase <- XCTestCase)
-        // are NOT detected. Only direct subclasses of XCTestCase are captured.
+        // are NOT detected WITHOUT annotation.
         //
-        // This is a tree-sitter limitation - queries can only match patterns in the syntax tree,
-        // they cannot perform semantic analysis to resolve inheritance hierarchies.
+        // However, users can use the // @XCTestClass comment annotation as a workaround.
 
         let source = r#"
 import XCTest
@@ -434,11 +433,17 @@ class MyTests: MyTestsBase {
     }
 
     #[test]
-    fn test_comment_annotation_for_indirect_subclass() {
-        // Test whether we can use comment annotations to mark indirect XCTest subclasses
-        // This explores a potential workaround for the tree-sitter limitation
+    fn test_xctest_indirect_subclass_with_annotation() {
+        // This test verifies that the // @XCTestClass comment annotation workaround
+        // allows indirect XCTest subclasses to be detected by the runnables.scm query.
 
         let source = r#"
+import XCTest
+
+class MyTestsBase: XCTestCase {
+    // Base class with common functionality
+}
+
 // @XCTestClass
 class MyTests: MyTestsBase {
     func testSomething() {
@@ -451,124 +456,148 @@ class MyTests: MyTestsBase {
 }
 "#;
 
-        // First, verify comments are in the syntax tree
-        let mut parser = setup_parser();
-        let tree = parser.parse(source, None).unwrap();
+        let captures = get_captures(source, get_query());
 
-        println!("\n=== Testing Comment Annotation Workaround ===");
-        println!("Syntax tree:\n{}", tree.root_node().to_sexp());
+        // Should capture MyTestsBase class (direct subclass of XCTestCase)
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "MyTestsBase"),
+            "Expected to find swift-xctest-class tag for MyTestsBase (direct subclass of XCTestCase)"
+        );
 
-        // Test 1: Match comment + class pattern
-        let class_query_str = r#"
-(source_file
-  (comment) @test_marker (#match? @test_marker ".*@XCTestClass.*")
-  (class_declaration
-    name: (type_identifier) @SWIFT_TEST_CLASS
-  )
-)
-        "#;
+        // MyTests SHOULD now be captured because of the @XCTestClass annotation
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "MyTests"),
+            "Expected to find swift-xctest-class tag for MyTests with @XCTestClass annotation"
+        );
 
-        println!("\n--- Test 1: Matching class with @XCTestClass comment ---");
-        match Query::new(&get_language(), class_query_str) {
-            Ok(test_query) => {
-                let mut cursor = QueryCursor::new();
-                let mut matches = cursor.matches(&test_query, tree.root_node(), source.as_bytes());
+        // Test functions in MyTests SHOULD be captured with the annotation
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyTests"
+                    && func == "testSomething"),
+            "Expected to find testSomething in annotated indirect subclass"
+        );
 
-                let mut found_match = false;
-                while let Some(match_) = matches.next() {
-                    found_match = true;
-                    for capture in match_.captures {
-                        let capture_name = &test_query.capture_names()[capture.index as usize];
-                        let text = capture.node.utf8_text(source.as_bytes()).unwrap();
-                        println!("Captured {}: '{}'", capture_name, text);
-                    }
-                }
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyTests"
+                    && func == "testAnotherThing"),
+            "Expected to find testAnotherThing in annotated indirect subclass"
+        );
+    }
 
-                if found_match {
-                    println!("✓ SUCCESS: Comment annotation for class works!");
-                } else {
-                    println!(
-                        "✗ Pattern didn't match - comment + class pattern may need adjustment"
-                    );
-                }
+    #[test]
+    fn test_comment_annotation_for_indirect_subclass() {
+        // This test demonstrates the complete workaround for indirect XCTest subclasses.
+        // It shows a realistic scenario with a base test class and an annotated subclass.
 
-                assert!(
-                    found_match,
-                    "Expected to match comment annotation pattern for class"
-                );
-            }
-            Err(e) => {
-                panic!(
-                    "Failed to compile class query for comment annotations: {}",
-                    e
-                );
-            }
-        }
+        let source = r#"
+import XCTest
 
-        // Test 2: Match test functions within annotated class
-        let func_query_str = r#"
-(source_file
-  (comment) @test_marker (#match? @test_marker ".*@XCTestClass.*")
-  (class_declaration
-    name: (type_identifier) @SWIFT_TEST_CLASS
-    body: (class_body
-      (function_declaration
-        name: (simple_identifier) @SWIFT_TEST_FUNC @run (#match? @run "^test")
-      )
-    )
-  )
-)
-        "#;
+// Base test class with shared setup/teardown
+class BaseTestCase: XCTestCase {
+    var sharedResource: String!
 
-        println!("\n--- Test 2: Matching test functions in annotated class ---");
-        match Query::new(&get_language(), func_query_str) {
-            Ok(test_query) => {
-                let mut cursor = QueryCursor::new();
-                let mut matches = cursor.matches(&test_query, tree.root_node(), source.as_bytes());
+    override func setUp() {
+        super.setUp()
+        sharedResource = "test"
+    }
+}
 
-                let mut test_funcs = Vec::new();
-                while let Some(match_) = matches.next() {
-                    for capture in match_.captures {
-                        let capture_name = &test_query.capture_names()[capture.index as usize];
-                        let text = capture.node.utf8_text(source.as_bytes()).unwrap();
-                        println!("Captured {}: '{}'", capture_name, text);
-                        if *capture_name == "SWIFT_TEST_FUNC" {
-                            test_funcs.push(text.to_string());
-                        }
-                    }
-                }
+// @XCTestClass
+class MyFeatureTests: BaseTestCase {
+    func testFeatureA() {
+        XCTAssertNotNil(sharedResource)
+    }
 
-                if test_funcs.len() > 0 {
-                    println!(
-                        "✓ SUCCESS: Found {} test functions in annotated class",
-                        test_funcs.len()
-                    );
-                    println!("Test functions: {:?}", test_funcs);
-                } else {
-                    println!("✗ No test functions captured");
-                }
+    func testFeatureB() {
+        XCTAssertEqual(sharedResource, "test")
+    }
 
-                assert!(
-                    test_funcs.contains(&"testSomething".to_string()),
-                    "Expected to find testSomething"
-                );
-                assert!(
-                    test_funcs.contains(&"testAnotherThing".to_string()),
-                    "Expected to find testAnotherThing"
-                );
+    func helperMethod() {
+        // Not a test
+    }
+}
 
-                println!("\n=== CONCLUSION ===");
-                println!("✓ Comment annotations WORK as a workaround!");
-                println!("Users can add '// @XCTestClass' before indirect XCTest subclasses,");
-                println!("and we can update runnables.scm to detect them.");
-            }
-            Err(e) => {
-                panic!(
-                    "Failed to compile function query for comment annotations: {}",
-                    e
-                );
-            }
-        }
+// Another annotated indirect subclass
+// @XCTestClass
+class MyOtherTests: BaseTestCase {
+    func testAnotherFeature() {
+        XCTAssertTrue(true)
+    }
+}
+"#;
+
+        let captures = get_captures(source, get_query());
+
+        // Should capture the base class (direct XCTestCase subclass)
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "BaseTestCase"),
+            "Expected to find BaseTestCase"
+        );
+
+        // Should capture MyFeatureTests class (annotated)
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "MyFeatureTests"),
+            "Expected to find MyFeatureTests with @XCTestClass annotation"
+        );
+
+        // Should capture test functions in MyFeatureTests
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyFeatureTests"
+                    && func == "testFeatureA"),
+            "Expected to find testFeatureA"
+        );
+
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyFeatureTests"
+                    && func == "testFeatureB"),
+            "Expected to find testFeatureB"
+        );
+
+        // helperMethod should NOT be captured (doesn't start with "test")
+        assert!(
+            !captures
+                .iter()
+                .any(|(tag, _, func)| tag == "swift-xctest-func" && func == "helperMethod"),
+            "helperMethod should not be captured"
+        );
+
+        // Should capture MyOtherTests class (annotated)
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "MyOtherTests"),
+            "Expected to find MyOtherTests with @XCTestClass annotation"
+        );
+
+        // Should capture test in MyOtherTests
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyOtherTests"
+                    && func == "testAnotherFeature"),
+            "Expected to find testAnotherFeature"
+        );
     }
 
     #[test]
