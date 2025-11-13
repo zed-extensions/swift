@@ -1,36 +1,29 @@
 #[cfg(test)]
 mod tests {
     use std::sync::OnceLock;
+    use streaming_iterator::StreamingIterator;
     use tree_sitter::{Language, Parser, Query, QueryCursor};
 
     const RUNNABLES_QUERY: &str = include_str!("../languages/swift/runnables.scm");
 
     // PERFORMANCE NOTE:
-    // Query compilation takes ~58 seconds with tree-sitter 0.20 and tree-sitter-swift 0.6.
-    // This is a known performance issue with older tree-sitter versions when compiling
-    // complex queries with multiple patterns and predicates. The runnables query has 8
-    // patterns with #eq?, #match?, and #set! predicates.
-    //
-    // We use OnceLock to compile the query only once and reuse it across all tests,
-    // but the initial compilation still takes significant time. Upgrading to tree-sitter
-    // 0.22+ would likely improve this, but requires compatible tree-sitter-swift bindings.
+    // With tree-sitter 0.23 and tree-sitter-swift 0.7, query compilation is significantly
+    // faster than the previous versions (0.20/0.6). We use OnceLock to cache both the
+    // language and compiled query across all tests for optimal performance.
 
-    fn get_language() -> Language {
+    fn get_language() -> &'static Language {
         static LANGUAGE: OnceLock<Language> = OnceLock::new();
-        *LANGUAGE.get_or_init(|| unsafe {
-            let ptr = tree_sitter_swift::LANGUAGE.into_raw()();
-            std::mem::transmute(ptr)
-        })
+        LANGUAGE.get_or_init(|| tree_sitter_swift::LANGUAGE.into())
     }
 
     fn get_query() -> &'static Query {
         static QUERY: OnceLock<Query> = OnceLock::new();
-        QUERY.get_or_init(|| Query::new(get_language(), RUNNABLES_QUERY).unwrap())
+        QUERY.get_or_init(|| Query::new(&get_language(), RUNNABLES_QUERY).unwrap())
     }
 
     fn setup_parser() -> Parser {
         let mut parser = Parser::new();
-        parser.set_language(get_language()).unwrap();
+        parser.set_language(&get_language()).unwrap();
         parser
     }
 
@@ -40,7 +33,9 @@ mod tests {
         let mut cursor = QueryCursor::new();
 
         let mut results = Vec::new();
-        for match_ in cursor.matches(query, tree.root_node(), source.as_bytes()) {
+        let mut matches = cursor.matches(query, tree.root_node(), source.as_bytes());
+
+        while let Some(match_) = matches.next() {
             let mut tag = String::new();
             let mut class_name = String::new();
             let mut func_name = String::new();
