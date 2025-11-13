@@ -213,3 +213,6 @@ impl zed::Extension for SwiftExtension {
 }
 
 zed::register_extension!(SwiftExtension);
+
+#[cfg(test)]
+mod runnables_test;
