@@ -366,6 +366,212 @@ class OuterTests: XCTestCase {
     }
 
     #[test]
+    fn test_xctest_indirect_subclass() {
+        // This test documents a known limitation: tree-sitter queries work on syntax, not semantics,
+        // so they cannot follow inheritance chains. Indirect subclasses (MyTests <- MyTestsBase <- XCTestCase)
+        // are NOT detected. Only direct subclasses of XCTestCase are captured.
+        //
+        // This is a tree-sitter limitation - queries can only match patterns in the syntax tree,
+        // they cannot perform semantic analysis to resolve inheritance hierarchies.
+
+        let source = r#"
+import XCTest
+
+class MyTestsBase: XCTestCase {
+    // Base class with common functionality
+}
+
+class MyTests: MyTestsBase {
+    func testSomething() {
+        XCTAssertTrue(true)
+    }
+
+    func testAnotherThing() {
+        XCTAssertEqual(1, 1)
+    }
+}
+"#;
+
+        let captures = get_captures(source, get_query());
+
+        // Should capture MyTestsBase class (direct subclass of XCTestCase)
+        assert!(
+            captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "MyTestsBase"),
+            "Expected to find swift-xctest-class tag for MyTestsBase (direct subclass of XCTestCase)"
+        );
+
+        // MyTests will NOT be captured as an XCTest class because tree-sitter can't follow
+        // the inheritance chain. It only sees that MyTests inherits from MyTestsBase, not that
+        // MyTestsBase inherits from XCTestCase.
+        assert!(
+            !captures
+                .iter()
+                .any(|(tag, class, _)| tag == "swift-xctest-class" && class == "MyTests"),
+            "MyTests should NOT be captured because tree-sitter cannot follow indirect inheritance"
+        );
+
+        // Test functions in MyTests will NOT be captured because the class itself wasn't
+        // recognized as an XCTestCase subclass
+        assert!(
+            !captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyTests"
+                    && func == "testSomething"),
+            "testSomething should NOT be captured - tree-sitter can't follow indirect inheritance"
+        );
+
+        assert!(
+            !captures
+                .iter()
+                .any(|(tag, class, func)| tag == "swift-xctest-func"
+                    && class == "MyTests"
+                    && func == "testAnotherThing"),
+            "testAnotherThing should NOT be captured - tree-sitter can't follow indirect inheritance"
+        );
+    }
+
+    #[test]
+    fn test_comment_annotation_for_indirect_subclass() {
+        // Test whether we can use comment annotations to mark indirect XCTest subclasses
+        // This explores a potential workaround for the tree-sitter limitation
+
+        let source = r#"
+// @XCTestClass
+class MyTests: MyTestsBase {
+    func testSomething() {
+        XCTAssertTrue(true)
+    }
+
+    func testAnotherThing() {
+        XCTAssertEqual(1, 1)
+    }
+}
+"#;
+
+        // First, verify comments are in the syntax tree
+        let mut parser = setup_parser();
+        let tree = parser.parse(source, None).unwrap();
+
+        println!("\n=== Testing Comment Annotation Workaround ===");
+        println!("Syntax tree:\n{}", tree.root_node().to_sexp());
+
+        // Test 1: Match comment + class pattern
+        let class_query_str = r#"
+(source_file
+  (comment) @test_marker (#match? @test_marker ".*@XCTestClass.*")
+  (class_declaration
+    name: (type_identifier) @SWIFT_TEST_CLASS
+  )
+)
+        "#;
+
+        println!("\n--- Test 1: Matching class with @XCTestClass comment ---");
+        match Query::new(&get_language(), class_query_str) {
+            Ok(test_query) => {
+                let mut cursor = QueryCursor::new();
+                let mut matches = cursor.matches(&test_query, tree.root_node(), source.as_bytes());
+
+                let mut found_match = false;
+                while let Some(match_) = matches.next() {
+                    found_match = true;
+                    for capture in match_.captures {
+                        let capture_name = &test_query.capture_names()[capture.index as usize];
+                        let text = capture.node.utf8_text(source.as_bytes()).unwrap();
+                        println!("Captured {}: '{}'", capture_name, text);
+                    }
+                }
+
+                if found_match {
+                    println!("✓ SUCCESS: Comment annotation for class works!");
+                } else {
+                    println!(
+                        "✗ Pattern didn't match - comment + class pattern may need adjustment"
+                    );
+                }
+
+                assert!(
+                    found_match,
+                    "Expected to match comment annotation pattern for class"
+                );
+            }
+            Err(e) => {
+                panic!(
+                    "Failed to compile class query for comment annotations: {}",
+                    e
+                );
+            }
+        }
+
+        // Test 2: Match test functions within annotated class
+        let func_query_str = r#"
+(source_file
+  (comment) @test_marker (#match? @test_marker ".*@XCTestClass.*")
+  (class_declaration
+    name: (type_identifier) @SWIFT_TEST_CLASS
+    body: (class_body
+      (function_declaration
+        name: (simple_identifier) @SWIFT_TEST_FUNC @run (#match? @run "^test")
+      )
+    )
+  )
+)
+        "#;
+
+        println!("\n--- Test 2: Matching test functions in annotated class ---");
+        match Query::new(&get_language(), func_query_str) {
+            Ok(test_query) => {
+                let mut cursor = QueryCursor::new();
+                let mut matches = cursor.matches(&test_query, tree.root_node(), source.as_bytes());
+
+                let mut test_funcs = Vec::new();
+                while let Some(match_) = matches.next() {
+                    for capture in match_.captures {
+                        let capture_name = &test_query.capture_names()[capture.index as usize];
+                        let text = capture.node.utf8_text(source.as_bytes()).unwrap();
+                        println!("Captured {}: '{}'", capture_name, text);
+                        if *capture_name == "SWIFT_TEST_FUNC" {
+                            test_funcs.push(text.to_string());
+                        }
+                    }
+                }
+
+                if test_funcs.len() > 0 {
+                    println!(
+                        "✓ SUCCESS: Found {} test functions in annotated class",
+                        test_funcs.len()
+                    );
+                    println!("Test functions: {:?}", test_funcs);
+                } else {
+                    println!("✗ No test functions captured");
+                }
+
+                assert!(
+                    test_funcs.contains(&"testSomething".to_string()),
+                    "Expected to find testSomething"
+                );
+                assert!(
+                    test_funcs.contains(&"testAnotherThing".to_string()),
+                    "Expected to find testAnotherThing"
+                );
+
+                println!("\n=== CONCLUSION ===");
+                println!("✓ Comment annotations WORK as a workaround!");
+                println!("Users can add '// @XCTestClass' before indirect XCTest subclasses,");
+                println!("and we can update runnables.scm to detect them.");
+            }
+            Err(e) => {
+                panic!(
+                    "Failed to compile function query for comment annotations: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_query_is_valid() {
         // This test ensures the query itself is syntactically valid
         // The query is compiled on first access via get_query()
