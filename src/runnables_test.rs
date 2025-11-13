@@ -1,31 +1,46 @@
 #[cfg(test)]
 mod tests {
-    use tree_sitter::{Parser, Query, QueryCursor};
+    use std::sync::OnceLock;
+    use tree_sitter::{Language, Parser, Query, QueryCursor};
 
     const RUNNABLES_QUERY: &str = include_str!("../languages/swift/runnables.scm");
 
-    fn setup_parser() -> Parser {
-        let mut parser = Parser::new();
-        let language = unsafe {
+    // PERFORMANCE NOTE:
+    // Query compilation takes ~58 seconds with tree-sitter 0.20 and tree-sitter-swift 0.6.
+    // This is a known performance issue with older tree-sitter versions when compiling
+    // complex queries with multiple patterns and predicates. The runnables query has 8
+    // patterns with #eq?, #match?, and #set! predicates.
+    //
+    // We use OnceLock to compile the query only once and reuse it across all tests,
+    // but the initial compilation still takes significant time. Upgrading to tree-sitter
+    // 0.22+ would likely improve this, but requires compatible tree-sitter-swift bindings.
+
+    fn get_language() -> Language {
+        static LANGUAGE: OnceLock<Language> = OnceLock::new();
+        *LANGUAGE.get_or_init(|| unsafe {
             let ptr = tree_sitter_swift::LANGUAGE.into_raw()();
             std::mem::transmute(ptr)
-        };
-        parser.set_language(language).unwrap();
+        })
+    }
+
+    fn get_query() -> &'static Query {
+        static QUERY: OnceLock<Query> = OnceLock::new();
+        QUERY.get_or_init(|| Query::new(get_language(), RUNNABLES_QUERY).unwrap())
+    }
+
+    fn setup_parser() -> Parser {
+        let mut parser = Parser::new();
+        parser.set_language(get_language()).unwrap();
         parser
     }
 
-    fn get_captures(source: &str, query_str: &str) -> Vec<(String, String, String)> {
+    fn get_captures(source: &str, query: &Query) -> Vec<(String, String, String)> {
         let mut parser = setup_parser();
         let tree = parser.parse(source, None).unwrap();
-        let language = unsafe {
-            let ptr = tree_sitter_swift::LANGUAGE.into_raw()();
-            std::mem::transmute(ptr)
-        };
-        let query = Query::new(language, query_str).unwrap();
         let mut cursor = QueryCursor::new();
 
         let mut results = Vec::new();
-        for match_ in cursor.matches(&query, tree.root_node(), source.as_bytes()) {
+        for match_ in cursor.matches(query, tree.root_node(), source.as_bytes()) {
             let mut tag = String::new();
             let mut class_name = String::new();
             let mut func_name = String::new();
@@ -67,7 +82,7 @@ struct MyTestSuite {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         // Should capture the @Suite struct
         assert!(
@@ -88,7 +103,7 @@ class MyTestClass {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -106,7 +121,7 @@ class MyTestClass {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -127,7 +142,7 @@ struct TestSuite {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -151,7 +166,7 @@ class MyTests: XCTestCase {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -175,7 +190,7 @@ class MyTests: XCTestCase {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -210,7 +225,7 @@ class MyTests: XCTestCase {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         // setUp and helperMethod should NOT be captured as they don't start with "test"
         assert!(
@@ -245,7 +260,7 @@ class MyQuickSpec: QuickSpec {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -272,7 +287,7 @@ class MyAsyncSpec: AsyncSpec {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         assert!(
             captures
@@ -297,7 +312,7 @@ class XCTestSuite: XCTestCase {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         // Should find all three types of tests
         assert!(
@@ -334,7 +349,7 @@ class OuterTests: XCTestCase {
 }
 "#;
 
-        let captures = get_captures(source, RUNNABLES_QUERY);
+        let captures = get_captures(source, get_query());
 
         // Only testOuter should be captured as it's in the XCTestCase subclass
         assert!(
@@ -358,16 +373,13 @@ class OuterTests: XCTestCase {
     #[test]
     fn test_query_is_valid() {
         // This test ensures the query itself is syntactically valid
-        let language = unsafe {
-            let ptr = tree_sitter_swift::LANGUAGE.into_raw()();
-            std::mem::transmute(ptr)
-        };
-        let result = Query::new(language, RUNNABLES_QUERY);
+        // The query is compiled on first access via get_query()
+        let query = get_query();
 
+        // If we got here, the query compiled successfully
         assert!(
-            result.is_ok(),
-            "Runnables query should be valid: {:?}",
-            result.err()
+            query.capture_names().len() > 0,
+            "Query should have capture names"
         );
     }
 }
