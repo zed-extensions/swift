@@ -4,6 +4,21 @@
 ;;
 ;; While the tasks defined in this extension don't care which library is used,
 ;; other tasks built by users might.
+;;
+;; INDIRECT XCTEST SUBCLASSES:
+;; Tree-sitter queries cannot follow inheritance chains semantically, so indirect
+;; subclasses (MyTests <- MyTestsBase <- XCTestCase) are not automatically detected.
+;;
+;; WORKAROUND: Add a // @XCTestClass comment before indirect subclass declarations:
+;;
+;;   class MyTestsBase: XCTestCase { }
+;;
+;;   // @XCTestClass
+;;   class MyTests: MyTestsBase {
+;;       func testSomething() { }
+;;   }
+;;
+;; This allows the query to recognize and run tests in indirect subclasses.
 
 ;; @Suite struct/class
 (
@@ -88,6 +103,30 @@
   (#set! tag swift-xctest-func)
 )
 
+;; XCTestCase indirect subclass with @XCTestClass comment annotation
+;; This pattern allows users to mark indirect subclasses (MyTests <- MyTestsBase <- XCTestCase)
+;; by adding a "// @XCTestClass" comment before the class declaration.
+(
+  (comment) @_marker (#match? @_marker ".*@XCTestClass.*")
+  (class_declaration
+    name: (type_identifier) @SWIFT_TEST_CLASS @run
+  ) @_swift-xctest-class
+  (#set! tag swift-xctest-class)
+)
+
+;; Test function within comment-annotated XCTest class
+(
+  (comment) @_marker (#match? @_marker ".*@XCTestClass.*")
+  (class_declaration
+    name: (type_identifier) @SWIFT_TEST_CLASS
+    body: (class_body
+      (function_declaration
+        name: (simple_identifier) @_name @SWIFT_TEST_FUNC @run (#match? @run "^test")
+      )
+    )
+  ) @_swift-xctest-func
+  (#set! tag swift-xctest-func)
+)
 
 ;; QuickSpec subclass
 (
