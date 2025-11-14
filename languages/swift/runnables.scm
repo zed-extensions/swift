@@ -107,25 +107,21 @@
 ;; This pattern allows users to mark indirect subclasses (MyTests <- MyTestsBase <- XCTestCase)
 ;; by adding a "// @XCTestClass" comment before the class declaration.
 (
-  (source_file
-    (comment) @_marker (#match? @_marker ".*@XCTestClass.*")
-    (class_declaration
-      name: (type_identifier) @SWIFT_TEST_CLASS
-    )
+  (comment) @_marker (#match? @_marker ".*@XCTestClass.*")
+  (class_declaration
+    name: (type_identifier) @SWIFT_TEST_CLASS @run
   ) @_swift-xctest-class
   (#set! tag swift-xctest-class)
 )
 
 ;; Test function within comment-annotated XCTest class
 (
-  (source_file
-    (comment) @_marker (#match? @_marker ".*@XCTestClass.*")
-    (class_declaration
-      name: (type_identifier) @SWIFT_TEST_CLASS
-      body: (class_body
-        (function_declaration
-          name: (simple_identifier) @_name @SWIFT_TEST_FUNC @run (#match? @run "^test")
-        )
+  (comment) @_marker (#match? @_marker ".*@XCTestClass.*")
+  (class_declaration
+    name: (type_identifier) @SWIFT_TEST_CLASS
+    body: (class_body
+      (function_declaration
+        name: (simple_identifier) @_name @SWIFT_TEST_FUNC @run (#match? @run "^test")
       )
     )
   ) @_swift-xctest-func
