@@ -7,6 +7,7 @@
 ) @item
 
 (class_declaration
+    (modifiers)?
     declaration_kind: (
         [
             "actor"
@@ -19,8 +20,8 @@
     .
     _ * @name
     .
-    body: (_)
-) @item
+    body: (_) @item
+)
 
 (init_declaration
     name: "init" @name
