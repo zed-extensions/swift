@@ -62,7 +62,7 @@
 //!
 //! Example:
 //!
-//! ```rust
+//! ```rust,ignore
 //! #[test]
 //! fn test_new_framework() {
 //!     let source = r#"
@@ -100,12 +100,12 @@ mod tests {
 
     fn get_query() -> &'static Query {
         static QUERY: OnceLock<Query> = OnceLock::new();
-        QUERY.get_or_init(|| Query::new(&get_language(), RUNNABLES_QUERY).unwrap())
+        QUERY.get_or_init(|| Query::new(get_language(), RUNNABLES_QUERY).unwrap())
     }
 
     fn setup_parser() -> Parser {
         let mut parser = Parser::new();
-        parser.set_language(&get_language()).unwrap();
+        parser.set_language(get_language()).unwrap();
         parser
     }
 
@@ -126,7 +126,7 @@ mod tests {
                 let capture_name = &query.capture_names()[capture.index as usize];
                 let text = capture.node.utf8_text(source.as_bytes()).unwrap();
 
-                match capture_name.as_ref() {
+                match *capture_name {
                     "SWIFT_TEST_CLASS" => class_name = text.to_string(),
                     "SWIFT_TEST_FUNC" => func_name = text.to_string(),
                     _ => {}
@@ -135,7 +135,7 @@ mod tests {
 
             // Get the tag from pattern properties
             if let Some(props) = match_.pattern_index.checked_sub(0) {
-                for prop in query.property_settings(props as usize) {
+                for prop in query.property_settings(props) {
                     if prop.key.as_ref() == "tag" {
                         if let Some(value) = &prop.value {
                             tag = value.to_string();
@@ -690,7 +690,7 @@ class MyOtherTests: BaseTestCase {
 
         // If we got here, the query compiled successfully
         assert!(
-            query.capture_names().len() > 0,
+            !query.capture_names().is_empty(),
             "Query should have capture names"
         );
     }
