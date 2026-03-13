@@ -2,6 +2,7 @@ name = "Swift"
 grammar = "swift"
 path_suffixes = ["swift", "swiftinterface"]
 line_comments = ["// "]
+first_line_pattern = '^#!.*\bswift\b'
 block_comment = ["/*", "*/"]
 autoclose_before = ")}]"
 brackets = [
