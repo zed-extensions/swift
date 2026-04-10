@@ -11,7 +11,13 @@ repository = "https://github.com/zed-extensions/swift"
 
 [language_servers.sourcekit-lsp]
 name = "sourcekit-lsp"
-language = "Swift"
+languages = ["Swift", "C", "C++", "Objective-C"]
+
+[language_servers.sourcekit-lsp.language_ids]
+Swift = "swift"
+C = "c"
+"C++" = "cpp"
+"Objective-C" = "objective-c"
 
 [grammars.swift]
 repository = "https://github.com/alex-pinkus/tree-sitter-swift"
