@@ -1,20 +1,17 @@
 [
   ; ... refers to the section that will get affected by this indent.begin capture
-  (protocol_body)               ; protocol Foo { ... }
-  (class_body)                  ; class Foo { ... }
-  (enum_class_body)             ; enum Foo { ... }
-  (function_declaration)        ; func Foo (...) {...}
-  (init_declaration)            ; init(...) {...}
-  (deinit_declaration)          ; deinit {...}
-  (computed_property)           ; { ... }
-  (subscript_declaration)       ; subscript Foo(...) { ... }
-
-  (computed_getter)             ; get { ... }
-  (computed_setter)             ; set { ... }
-
-  (assignment)                  ; a = b
-
-  (control_transfer_statement)  ; return ...
+  (protocol_body) ; protocol Foo { ... }
+  (class_body) ; class Foo { ... }
+  (enum_class_body) ; enum Foo { ... }
+  (function_declaration) ; func Foo (...) {...}
+  (init_declaration) ; init(...) {...}
+  (deinit_declaration) ; deinit {...}
+  (computed_property) ; { ... }
+  (subscript_declaration) ; subscript Foo(...) { ... }
+  (computed_getter) ; get { ... }
+  (computed_setter) ; set { ... }
+  (assignment) ; a = b
+  (control_transfer_statement) ; return ...
   (for_statement)
   (while_statement)
   (repeat_while_statement)
@@ -22,16 +19,14 @@
   (if_statement)
   (switch_statement)
   (guard_statement)
-
-  (type_parameters)             ; x<Foo>
-  (tuple_type)                  ; (...)
-  (array_type)                  ; [String]
-  (dictionary_type)             ; [Foo: Bar]
-
-  (call_expression)             ; callFunc(...)
-  (tuple_expression)            ; ( foo + bar )
-  (array_literal)               ; [ foo, bar ]
-  (dictionary_literal)          ; [ foo: bar, x: y ]
+  (type_parameters) ; x<Foo>
+  (tuple_type) ; (...)
+  (array_type) ; [String]
+  (dictionary_type) ; [Foo: Bar]
+  (call_expression) ; callFunc(...)
+  (tuple_expression) ; ( foo + bar )
+  (array_literal) ; [ foo, bar ]
+  (dictionary_literal) ; [ foo: bar, x: y ]
   (lambda_literal)
   (willset_didset_block)
   (willset_clause)
@@ -39,8 +34,8 @@
 ] @indent.begin
 
 ; @something(...)
-((modifiers
-  (attribute) @indent.begin))
+(modifiers
+  (attribute) @indent.begin)
 
 (function_declaration
   (modifiers
@@ -51,11 +46,21 @@
   _ @indent.branch
   (#not-has-type? @indent.branch type_parameters parameter))
 
+(_
+  "{"
+  "}" @end) @indent
 
-(_ "{" "}" @end) @indent
-(_ "(" ")" @end) @indent
-(_ "<" ">" @end) @indent
-(_ "[" "]" @end) @indent
+(_
+  "("
+  ")" @end) @indent
+
+(_
+  "<"
+  ">" @end) @indent
+
+(_
+  "["
+  "]" @end) @indent
 
 ; if-elseif
 (if_statement
@@ -64,22 +69,33 @@
 ; case Foo:
 ; default Foo:
 ; @attribute default Foo:
-(switch_entry . _ @indent.branch)
+(switch_entry
+  .
+  _ @indent.branch)
 
-(function_declaration ")" @indent.branch)
+(function_declaration
+  ")" @indent.branch)
 
-(type_parameters ">" @indent.branch @indent.end .)
-(tuple_expression ")" @indent.branch @indent.end)
-(value_arguments ")" @indent.branch @indent.end)
-(tuple_type ")" @indent.branch @indent.end)
+(type_parameters
+  ">" @indent.branch @indent.end .)
+
+(tuple_expression
+  ")" @indent.branch @indent.end)
+
+(value_arguments
+  ")" @indent.branch @indent.end)
+
+(tuple_type
+  ")" @indent.branch @indent.end)
+
 (modifiers
-  (attribute ")" @indent.branch @indent.end))
+  (attribute
+    ")" @indent.branch @indent.end))
 
 [
   "}"
   "]"
 ] @indent.branch @indent.end
-
 
 [
   ; (ERROR)
