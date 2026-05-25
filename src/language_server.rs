@@ -160,52 +160,57 @@ impl SourceKitLsp {
 
     pub fn label_for_symbol(&self, symbol: Symbol) -> Option<CodeLabel> {
         match symbol.kind {
-            SymbolKind::Method | SymbolKind::Function => {
-                // Simple label: "func <name>"
-                let code = format!("func {}", symbol.name);
+            // Enum cases need the surrounding enum body as tree-sitter context so that
+            // `case` tokenizes correctly. The `case` keyword is shown in the label but
+            // excluded from the filter so fuzzy matching works on the case name alone.
+            SymbolKind::EnumMember => {
+                let context = "enum E { ";
+                let case_kw = "case ";
+                let code = format!("{context}{case_kw}{} }}", symbol.name);
+                let display_start = context.len();
+                let display_end = display_start + case_kw.len() + symbol.name.len();
                 Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
+                    spans: vec![CodeLabelSpan::code_range(display_start..display_end)],
+                    filter_range: (case_kw.len()..case_kw.len() + symbol.name.len()).into(),
+                    code,
                 })
             }
-            SymbolKind::Variable | SymbolKind::Constant => {
-                // Simple label: "var/let <name>"
-                let code = format!("var/let {}", symbol.name);
+            // SourceKit-LSP sends the full signature as the name ("init(x:y:)", "deinit"),
+            // so no keyword prefix is needed. A class body provides tree-sitter context.
+            // Filter stops at `(` so typing "init" matches all initializers.
+            SymbolKind::Constructor => {
+                let context = "class C { ";
+                let code = format!("{context}{} }}", symbol.name);
+                let display_start = context.len();
+                let display_end = display_start + symbol.name.len();
+                let filter_end = symbol.name.find('(').unwrap_or(symbol.name.len());
                 Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
+                    spans: vec![CodeLabelSpan::code_range(display_start..display_end)],
+                    filter_range: (0..filter_end).into(),
+                    code,
                 })
             }
-            SymbolKind::Class => {
-                // Simple label: "class <name>"
-                let code = format!("class {}", symbol.name);
+            kind => {
+                let (prefix, suffix) = match kind {
+                    SymbolKind::Method | SymbolKind::Function => ("func ", "() {}"),
+                    SymbolKind::Variable | SymbolKind::Property => ("var ", ": Int"),
+                    SymbolKind::Constant => ("let ", ": Int"),
+                    SymbolKind::Class => ("class ", " {}"),
+                    SymbolKind::Interface => ("protocol ", " {}"),
+                    SymbolKind::Struct => ("struct ", " {}"),
+                    SymbolKind::Enum => ("enum ", " {}"),
+                    SymbolKind::Namespace => ("extension ", " {}"),
+                    SymbolKind::TypeParameter => ("typealias ", " = Any"),
+                    _ => return None,
+                };
+                let code = format!("{prefix}{}{suffix}", symbol.name);
+                let display_len = prefix.len() + symbol.name.len();
                 Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
+                    spans: vec![CodeLabelSpan::code_range(0..display_len)],
+                    filter_range: (prefix.len()..display_len).into(),
+                    code,
                 })
             }
-            SymbolKind::Struct => {
-                // Simple label: "struct <name>"
-                let code = format!("struct {}", symbol.name);
-                Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
-                })
-            }
-            SymbolKind::Enum => {
-                // Simple label: "enum <name>"
-                let code = format!("enum {}", symbol.name);
-                Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
-                })
-            }
-            _ => None,
         }
     }
 }
