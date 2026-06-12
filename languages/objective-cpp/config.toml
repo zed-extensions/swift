@@ -1,0 +1,15 @@
+name = "Objective-C++"
+grammar = "objc"
+path_suffixes = ["mm"]
+line_comments = ["// "]
+block_comment = ["/*", "*/"]
+autoclose_before = ";:.,=}])> \n\t"
+brackets = [
+    { start = "{", end = "}", close = true, newline = true },
+    { start = "[", end = "]", close = true, newline = true },
+    { start = "(", end = ")", close = true, newline = true },
+    { start = "\"", end = "\"", close = true, newline = false, not_in = ["string", "comment"] },
+    { start = "'", end = "'", close = true, newline = false, not_in = ["string", "comment"] },
+    { start = "/*", end = " */", close = true, newline = false, not_in = ["string", "comment"] },
+]
+word_characters = ["_"]
