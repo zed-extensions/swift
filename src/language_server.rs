@@ -160,52 +160,230 @@ impl SourceKitLsp {
 
     pub fn label_for_symbol(&self, symbol: Symbol) -> Option<CodeLabel> {
         match symbol.kind {
-            SymbolKind::Method | SymbolKind::Function => {
-                // Simple label: "func <name>"
-                let code = format!("func {}", symbol.name);
+            // Enum cases need the surrounding enum body as tree-sitter context so that
+            // `case` tokenizes correctly. The `case` keyword is shown in the label but
+            // excluded from the filter so fuzzy matching works on the case name alone.
+            SymbolKind::EnumMember => {
+                let context = "enum E { ";
+                let case_kw = "case ";
+                let code = format!("{context}{case_kw}{} }}", symbol.name);
+                let display_start = context.len();
+                let display_end = display_start + case_kw.len() + symbol.name.len();
                 Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
+                    spans: vec![CodeLabelSpan::code_range(display_start..display_end)],
+                    filter_range: (case_kw.len()..case_kw.len() + symbol.name.len()).into(),
+                    code,
                 })
             }
-            SymbolKind::Variable | SymbolKind::Constant => {
-                // Simple label: "var/let <name>"
-                let code = format!("var/let {}", symbol.name);
+            // SourceKit-LSP sends the full signature as the name ("init(x:y:)", "deinit"),
+            // so no keyword prefix is needed. A class body provides tree-sitter context.
+            // Filter stops at `(` so typing "init" matches all initializers.
+            SymbolKind::Constructor => {
+                let context = "class C { ";
+                let code = format!("{context}{} }}", symbol.name);
+                let display_start = context.len();
+                let display_end = display_start + symbol.name.len();
+                let filter_end = symbol.name.find('(').unwrap_or(symbol.name.len());
                 Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
+                    spans: vec![CodeLabelSpan::code_range(display_start..display_end)],
+                    filter_range: (0..filter_end).into(),
+                    code,
                 })
             }
-            SymbolKind::Class => {
-                // Simple label: "class <name>"
-                let code = format!("class {}", symbol.name);
+            kind => {
+                let (prefix, suffix) = match kind {
+                    SymbolKind::Method | SymbolKind::Function => ("func ", "() {}"),
+                    SymbolKind::Variable | SymbolKind::Property => ("var ", ": Int"),
+                    SymbolKind::Constant => ("let ", ": Int"),
+                    SymbolKind::Class => ("class ", " {}"),
+                    SymbolKind::Interface => ("protocol ", " {}"),
+                    SymbolKind::Struct => ("struct ", " {}"),
+                    SymbolKind::Enum => ("enum ", " {}"),
+                    SymbolKind::Namespace => ("extension ", " {}"),
+                    SymbolKind::TypeParameter => ("typealias ", " = Any"),
+                    _ => return None,
+                };
+                let code = format!("{prefix}{}{suffix}", symbol.name);
+                let display_len = prefix.len() + symbol.name.len();
                 Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
+                    spans: vec![CodeLabelSpan::code_range(0..display_len)],
+                    filter_range: (prefix.len()..display_len).into(),
+                    code,
                 })
             }
-            SymbolKind::Struct => {
-                // Simple label: "struct <name>"
-                let code = format!("struct {}", symbol.name);
-                Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
-                })
-            }
-            SymbolKind::Enum => {
-                // Simple label: "enum <name>"
-                let code = format!("enum {}", symbol.name);
-                Some(CodeLabel {
-                    code: code.clone(),
-                    spans: vec![CodeLabelSpan::code_range(0..code.len())],
-                    filter_range: (0..symbol.name.len()).into(),
-                })
-            }
-            _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zed_extension_api::lsp::{Symbol, SymbolKind};
+
+    fn make_symbol(kind: SymbolKind, name: &str) -> Symbol {
+        Symbol {
+            kind,
+            name: name.to_string(),
+        }
+    }
+
+    // Asserts the three fields of a CodeLabel match the Rust built-in adapter pattern:
+    // - `code` is the full valid Swift snippet (prefix + name + suffix) for tree-sitter
+    // - `spans` selects prefix + name from `code` (suffix excluded from display)
+    // - `filter_range` indexes into the displayed text and selects just the name,
+    //   skipping the keyword prefix, so fuzzy matching works on the name alone
+    fn assert_code_label(
+        label: &CodeLabel,
+        expected_code: &str,
+        expected_display: &str,
+        expected_name: &str,
+    ) {
+        assert_eq!(label.code, expected_code, "code field");
+
+        assert_eq!(label.spans.len(), 1, "expected exactly one span");
+        let CodeLabelSpan::CodeRange(span) = &label.spans[0] else {
+            panic!("expected CodeRange span, got Literal");
+        };
+
+        let displayed = &expected_code[span.start as usize..span.end as usize];
+        assert_eq!(
+            displayed, expected_display,
+            "span selects wrong text from code"
+        );
+
+        let filter_text =
+            &displayed[label.filter_range.start as usize..label.filter_range.end as usize];
+        assert_eq!(
+            filter_text, expected_name,
+            "filter_range should select just the symbol name"
+        );
+    }
+
+    #[test]
+    fn label_for_function() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Function, "myFunc"))
+            .expect("expected a label for Function");
+        assert_code_label(&label, "func myFunc() {}", "func myFunc", "myFunc");
+    }
+
+    #[test]
+    fn label_for_method() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Method, "myMethod"))
+            .expect("expected a label for Method");
+        assert_code_label(&label, "func myMethod() {}", "func myMethod", "myMethod");
+    }
+
+    #[test]
+    fn label_for_variable() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Variable, "myVar"))
+            .expect("expected a label for Variable");
+        assert_code_label(&label, "var myVar: Int", "var myVar", "myVar");
+    }
+
+    #[test]
+    fn label_for_constant() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Constant, "myConst"))
+            .expect("expected a label for Constant");
+        assert_code_label(&label, "let myConst: Int", "let myConst", "myConst");
+    }
+
+    #[test]
+    fn label_for_class() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Class, "MyClass"))
+            .expect("expected a label for Class");
+        assert_code_label(&label, "class MyClass {}", "class MyClass", "MyClass");
+    }
+
+    #[test]
+    fn label_for_struct() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Struct, "MyStruct"))
+            .expect("expected a label for Struct");
+        assert_code_label(&label, "struct MyStruct {}", "struct MyStruct", "MyStruct");
+    }
+
+    #[test]
+    fn label_for_enum() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Enum, "MyEnum"))
+            .expect("expected a label for Enum");
+        assert_code_label(&label, "enum MyEnum {}", "enum MyEnum", "MyEnum");
+    }
+
+    #[test]
+    fn label_for_protocol() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Interface, "MyProtocol"))
+            .expect("expected a label for Interface");
+        assert_code_label(
+            &label,
+            "protocol MyProtocol {}",
+            "protocol MyProtocol",
+            "MyProtocol",
+        );
+    }
+
+    #[test]
+    fn label_for_property() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Property, "myProp"))
+            .expect("expected a label for Property");
+        assert_code_label(&label, "var myProp: Int", "var myProp", "myProp");
+    }
+
+    #[test]
+    fn label_for_extension() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Namespace, "MyType"))
+            .expect("expected a label for Namespace");
+        assert_code_label(&label, "extension MyType {}", "extension MyType", "MyType");
+    }
+
+    #[test]
+    fn label_for_enum_case() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::EnumMember, "myCase"))
+            .expect("expected a label for EnumMember");
+        assert_code_label(&label, "enum E { case myCase }", "case myCase", "myCase");
+    }
+
+    #[test]
+    fn label_for_initializer() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Constructor, "init(x:y:)"))
+            .expect("expected a label for Constructor (init)");
+        assert_code_label(&label, "class C { init(x:y:) }", "init(x:y:)", "init");
+    }
+
+    #[test]
+    fn label_for_deinitializer() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::Constructor, "deinit"))
+            .expect("expected a label for Constructor (deinit)");
+        assert_code_label(&label, "class C { deinit }", "deinit", "deinit");
+    }
+
+    #[test]
+    fn label_for_type_parameter() {
+        let label = SourceKitLsp::new()
+            .label_for_symbol(make_symbol(SymbolKind::TypeParameter, "MyAlias"))
+            .expect("expected a label for TypeParameter");
+        assert_code_label(
+            &label,
+            "typealias MyAlias = Any",
+            "typealias MyAlias",
+            "MyAlias",
+        );
+    }
+
+    #[test]
+    fn label_for_unhandled_kind_returns_none() {
+        let label = SourceKitLsp::new().label_for_symbol(make_symbol(SymbolKind::File, "anything"));
+        assert!(label.is_none(), "expected None for unhandled SymbolKind");
     }
 }
