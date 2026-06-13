@@ -7,7 +7,7 @@
     {
         "label": "$ZED_CUSTOM_SWIFT_TEST_CLASS test",
         "command": "swift",
-        "args": ["test", "--filter", "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_CLASS/'"],
+        "args": ["test", "--package-path", "$ZED_DIRNAME", "--filter", "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_CLASS/'"],
         "tags": ["swift-xctest-class", "swift-testing-suite"]
     },
     {
@@ -15,6 +15,8 @@
         "command": "swift",
         "args": [
             "test",
+            "--package-path",
+            "$ZED_DIRNAME",
             "--filter",
             "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_CLASS/$ZED_CUSTOM_SWIFT_TEST_FUNC\\b'"
         ],
@@ -25,6 +27,8 @@
         "command": "swift",
         "args": [
             "test",
+            "--package-path",
+            "$ZED_DIRNAME",
             "--filter",
             "'^\\w+\\.$ZED_CUSTOM_SWIFT_TEST_FUNC\\b'"
         ],
