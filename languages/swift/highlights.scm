@@ -57,10 +57,10 @@
 (where_keyword) @keyword
 
 (parameter
-  external_name: (simple_identifier) @property)
+  external_name: (simple_identifier) @variable.parameter)
 
 (parameter
-  name: (simple_identifier) @property)
+  name: (simple_identifier) @variable.parameter)
 
 (type_parameter
   (type_identifier) @property)
@@ -127,7 +127,7 @@
     (simple_identifier) @variable.parameter))
 
 (value_argument
-  name: (value_argument_label) @property)
+  name: (value_argument_label) @label)
 
 (import_declaration
   "import" @keyword.import)
